@@ -39,4 +39,4 @@ GET /api/parthers/avaliable
 }
 ```
 
-Прикладываю swagger для этого endpoint:
+Прикладываю swagger для этого endpoint: [swagger.yaml](swagger.yaml)
