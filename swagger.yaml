@@ -1,0 +1,229 @@
+openapi: 3.0.3
+info:
+  title: Petrushka Zelenaya — Partner Stores API
+  description: API for fetching available partner stores for a given delivery zone.
+  version: 1.0.0
+
+servers:
+  - url: https://api.petrushka.ru
+    description: Production
+
+paths:
+  /api/partners/available:
+    get:
+      summary: Get available partner stores
+      description: >
+        Returns a paginated list of partner stores available for delivery
+        to the specified zip code. Called when the user opens the "Choose a store" screen.
+      operationId: getAvailablePartners
+      parameters:
+        - name: zip_code
+          in: query
+          required: true
+          description: Delivery zip code of the user.
+          schema:
+            type: string
+            example: "10961"
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination (1-based).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of stores per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
+
+      responses:
+        "200":
+          description: A paginated list of available stores.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableStoresResponse"
+              example:
+                available_stores:
+                  - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    name: "METRO"
+                    logo_url: "https://cdn.petrushka.ru/logos/metro.png"
+                    external_link: "https://metro.ru?promo_code=hire_me&user_trace=1243432"
+                    delivery_windows:
+                      - from: "2026-03-24T21:00:00Z"
+                        to: "2026-03-24T23:00:00Z"
+                        fast_delivery: null
+                  - id: "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+                    name: "ВкусВилл"
+                    logo_url: "https://cdn.petrushka.ru/logos/vkusvill.png"
+                    external_link: "https://vkusvill.ru?promo_code=hire_me&user_trace=1243432"
+                    delivery_windows:
+                      - from: null
+                        to: null
+                        fast_delivery:
+                          from: 20
+                          to: 60
+                          unit: "minutes"
+                page: 1
+                total: 100
+
+        "400":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "INVALID_ZIP_CODE"
+                message: "zip_code is required and must be a valid postal code."
+
+        "404":
+          description: No stores available for the given zip code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "NO_STORES_FOUND"
+                message: "No partner stores are available for zip code 99999."
+
+        "500":
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+
+    AvailableStoresResponse:
+      type: object
+      required:
+        - available_stores
+        - page
+        - total
+      properties:
+        available_stores:
+          type: array
+          items:
+            $ref: "#/components/schemas/Store"
+        page:
+          type: integer
+          description: Current page number.
+          example: 1
+        total:
+          type: integer
+          description: Total number of available stores across all pages.
+          example: 100
+
+    Store:
+      type: object
+      required:
+        - id
+        - name
+        - logo_url
+        - delivery_windows
+        - external_link
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique store identifier.
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        name:
+          type: string
+          description: Display name of the store.
+          example: "METRO"
+        logo_url:
+          type: string
+          format: uri
+          description: URL to the store logo image.
+          example: "https://cdn.petrushka.ru/logos/metro.png"
+        external_link:
+          type: string
+          format: uri
+          description: >
+            URL to the store's external website. Used for redirect when the
+            user taps on the store card. May include tracking/promo parameters.
+          example: "https://metro.ru?promo_code=hire_me&user_trace=1243432"
+        delivery_windows:
+          type: array
+          description: >
+            Available delivery time slots for this store.
+            If fast_delivery is present, from/to timestamps may be null.
+          items:
+            $ref: "#/components/schemas/DeliveryWindow"
+
+    DeliveryWindow:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Start of the scheduled delivery window (ISO 8601 timestamp).
+            Null when only fast_delivery is available.
+          example: "2026-03-24T21:00:00Z"
+        to:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            End of the scheduled delivery window (ISO 8601 timestamp).
+            Null when only fast_delivery is available.
+          example: "2026-03-24T23:00:00Z"
+        fast_delivery:
+          nullable: true
+          description: >
+            Present when the store supports express delivery.
+            Null for stores with fixed time-window delivery only.
+          allOf:
+            - $ref: "#/components/schemas/FastDelivery"
+
+    FastDelivery:
+      type: object
+      required:
+        - from
+        - to
+        - unit
+      properties:
+        from:
+          type: integer
+          description: Minimum delivery time.
+          example: 20
+        to:
+          type: integer
+          description: Maximum delivery time.
+          example: 60
+        unit:
+          type: string
+          enum:
+            - minutes
+            - seconds
+          description: Unit of measurement for from/to values.
+          example: "minutes"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code.
+          example: "INVALID_ZIP_CODE"
+        message:
+          type: string
+          description: Human-readable error description.
+          example: "zip_code is required and must be a valid postal code."
